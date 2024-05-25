@@ -14,6 +14,7 @@ enum CMDType {
 	CMD_LOGIN_RESULT,
 	CMD_LOGOUT,
 	CMD_LOGOUT_RESULT,
+	CMD_NEW_USER_JOIN,
 	CMD_ERROR
 };
 
@@ -62,36 +63,21 @@ struct LogoutResult : public DataHead {
 	}
 	int result;
 };
-int main() {
-	WORD ver = MAKEWORD(2, 2);
-	WSADATA data;
-	WSAStartup(ver, &data);
-	//创建套接字
-	SOCKET sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-	if (sock == INVALID_SOCKET) {
-		std::cerr << "创建套接字失败\n";
-		return -1;
+
+struct NewUserJoin : public DataHead {
+	NewUserJoin() {
+		dataLength = sizeof(NewUserJoin);
+		cmd = CMD_NEW_USER_JOIN;
+		sock = 0;
 	}
-	else {
-		std::cout << "创建套接字成功\n";
-	}
-	//连接服务器
-	sockaddr_in addr;
-	addr.sin_family = AF_INET;
-	addr.sin_addr.S_un.S_addr = inet_addr("127.0.0.1");
-	addr.sin_port = htons(9999);
-	if (SOCKET_ERROR == connect(sock, (sockaddr*)&addr, sizeof(addr))) {
-		std::cout << "连接服务器失败\n";
-		return -1;
-	}
-	else {
-		std::cout << "连接服务器成功\n";
-	}
-	//接收消息
+	int sock;
+};
+
+void processCmd(SOCKET sock) {
+	//接收缓冲区
 	char buf[1024];
-	while (true) {
-		memset(buf, 0, sizeof(buf));
-		std::cin >> buf;
+	memset(buf, 0, sizeof(buf));
+	while (std::cin >> buf) {
 		if (strcmp(buf, "exit") == 0) {
 			break;
 		}
@@ -102,7 +88,6 @@ int main() {
 			//strcpy_s(login.userName, strlen("Li Heng") + 1, "Li Heng");
 			strcpy(login.userPassWord, "1994218li");
 			//strcpy_s(login.userPassWord, strlen("1994218li") + 1, "1994218li");
-			send(sock, (const char*)&login, sizeof(Login), 0);
 			//接收来自服务器的消息
 			LoginResult res = { };
 			recv(sock, (char*)&res, sizeof(res), 0);
@@ -132,8 +117,100 @@ int main() {
 		else {
 			std::cout << "不支持的命令，请重新输入\n";
 		}
+		memset(buf, 0, sizeof(buf));
 	}
-	//关闭套接字
+}
+
+int process(SOCKET sock) {
+	DataHead head = { };
+	int len = recv(sock, (char*)&head, sizeof(DataHead), 0);
+	if (len > 0) {
+		switch (head.cmd) {
+			case CMD_LOGIN_RESULT:
+			{
+				LoginResult result = { };
+				recv(sock, (char*)&result + sizeof(DataHead), sizeof(LoginResult) - sizeof(DataHead), 0);
+				std::cout << "收到来自服务器的登入结果信息: " << result.result << std::endl;
+				break;
+			}
+			case CMD_LOGOUT_RESULT:
+			{
+				LogoutResult result = { };
+				recv(sock, (char*)&result + sizeof(DataHead), sizeof(Logout) - sizeof(DataHead), 0);
+				std::cout << "收到来自服务器的登出结果信息: " << result.result << std::endl;
+				break;
+			}
+			case CMD_NEW_USER_JOIN:
+			{
+				NewUserJoin userJoin = { };
+				recv(sock, (char*)&userJoin + sizeof(DataHead), sizeof(NewUserJoin) - sizeof(DataHead), 0);
+				std::cout << "Sock: " << userJoin.sock << "成功登陆了\n";
+				break;
+			}
+			default:
+			{
+				head.cmd = CMD_ERROR;
+				head.dataLength = 0;
+				std::cout << "无法解析传送来的消息" << std::endl;
+				break;
+			}
+		}
+	}
+	else {
+		std::cout << "与服务器断开连接,任务结束\n";
+		return -1;
+	}
+	return 0;
+}
+
+int main() {
+	WORD ver = MAKEWORD(2, 2);
+	WSADATA data;
+	WSAStartup(ver, &data);
+	//创建套接字
+	SOCKET sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	if (sock == INVALID_SOCKET) {
+		std::cerr << "创建套接字失败\n";
+		return -1;
+	}
+	else {
+		std::cout << "创建套接字成功\n";
+	}
+	//连接服务器
+	sockaddr_in addr;
+	addr.sin_family = AF_INET;
+	addr.sin_addr.S_un.S_addr = inet_addr("127.0.0.1");
+	addr.sin_port = htons(9999);
+	if (SOCKET_ERROR == connect(sock, (sockaddr*)&addr, sizeof(addr))) {
+		std::cout << "连接服务器失败\n";
+		return -1;
+	}
+	else {
+		std::cout << "连接服务器成功\n";
+	}
+	while (true) {
+		fd_set fdReads;
+		FD_ZERO(&fdReads);;
+		FD_SET(sock, &fdReads);
+		timeval t = {1, 0};
+		int ret = select(sock + 1, &fdReads, NULL, NULL, &t);
+		if (ret < 0) {
+			std::cout << "select 任务结束\n";
+			break;
+		}
+		if (FD_ISSET(sock, &fdReads)) {
+			FD_CLR(sock, &fdReads);
+			if (process(sock) < 0) {
+				break;
+			}
+		}
+		std::cout << "空闲时间执行其他任务\n";
+		Sleep(DWORD(500));
+		Login login;
+		strcpy(login.userName, "Li Heng");
+		strcpy(login.userPassWord, "1994218li");
+		send(sock, (const char*)&login, sizeof(login), 0);
+	}
 	closesocket(sock);
 	WSACleanup();
 	getchar();

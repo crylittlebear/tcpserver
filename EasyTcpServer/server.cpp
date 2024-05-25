@@ -14,6 +14,7 @@ enum CMDType {
 	CMD_LOGIN_RESULT,
 	CMD_LOGOUT,
 	CMD_LOGOUT_RESULT,
+	CMD_NEW_USER_JOIN,
 	CMD_ERROR
 };
 
@@ -61,6 +62,15 @@ struct LogoutResult : public DataHead {
 		result = 0;
 	}
 	int result;
+};
+
+struct NewUserJoin : public DataHead {
+	NewUserJoin() {
+		dataLength = sizeof(NewUserJoin);
+		cmd = CMD_NEW_USER_JOIN;
+		sock = 0;
+	}
+	int sock;
 };
 
 std::vector<SOCKET> g_clients;
@@ -168,8 +178,8 @@ int main() {
 		// select的第一个参数是所有文件描述符的范围而不是数量
 		// 第一个参数是unix和linux中的伯克利socket，在windows下不需要设置
 		timeval tm;
-		tm.tv_sec = 0;
-		tm.tv_usec = 200000;
+		tm.tv_sec = 1;
+		tm.tv_usec = 0;
 		///select函数的最后一个参数如果被设置为NULL，则表示设置为阻塞状态
 		///只有新的连接到来才会往下继续执行，而如果将其设置为非NULL值，则
 		///变为非阻塞状态，在经过tm时间后便继续往下执行。
@@ -192,6 +202,12 @@ int main() {
 				std::cout << "成功接收到来自客户端的连接，IP: " << inet_ntoa(c_addr.sin_addr)
 					<< ", port: " << ntohs(c_addr.sin_port) << std::endl;
 			}
+			//在将自己加入vector中之前将加入的信息传送给所有客户端
+			for (int n = (int)g_clients.size() - 1; n >= 0; --n) {
+				NewUserJoin joinMsg;
+				joinMsg.sock = c_sock;
+				send(g_clients[n], (const char*)&joinMsg, sizeof(joinMsg), 0);
+			}
 			g_clients.push_back(c_sock);
 		}
 		for (std::size_t i = 0; i < fdRead.fd_count; ++i) {
@@ -201,7 +217,8 @@ int main() {
 					g_clients.erase(iter);
 				}
 			}
-		}
+		} 
+		std::cout << "空闲时间执行其他任务\n";
 	}
 	// 关闭所有的套接字
 	for (int i = 0; i < g_clients.size(); ++i) {

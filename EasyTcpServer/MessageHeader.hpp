@@ -1,8 +1,6 @@
 #ifndef MESSAGE_HEADER_H
 #define MESSAGE_HEADER_H
 
-#include <string.h>
-
 enum CMDType {
     CMD_LOGIN,
     CMD_LOGIN_RESULT,
@@ -14,9 +12,11 @@ enum CMDType {
 
 //数据包头
 struct DataHead {
-    //数据长度
+    DataHead() {
+        dataLength = sizeof(DataHead);
+        cmd = CMD_ERROR;
+    }
     short dataLength;
-    //命令
     short cmd;
 };
 
@@ -24,11 +24,11 @@ struct Login : public DataHead {
     Login() {
         dataLength = sizeof(Login);
         cmd = CMD_LOGIN;
-        memset(userName, 0, sizeof(userName));
-        memset(userPassword, 0, sizeof(userPassword));
     }
+    //共计1KB
     char userName[32];
     char userPassword[32];
+    char data[932];
 };
 
 struct LoginResult : public DataHead {
@@ -38,20 +38,20 @@ struct LoginResult : public DataHead {
         result = 0; // result为0表示操作成功
     }
     int result;
+    char data[992];
 };
 
 struct Logout : public DataHead {
     Logout() {
         dataLength = sizeof(Logout);
         cmd = CMD_LOGOUT;
-        memset(userName, 0, sizeof(userName));
     }
     char userName[32];
 };
 
 struct LogoutResult : public DataHead {
     LogoutResult() {
-        dataLength = sizeof(Logout);
+        dataLength = sizeof(LogoutResult);
         cmd = CMD_LOGOUT_RESULT;
         result = 0;
     }

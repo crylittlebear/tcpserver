@@ -1,5 +1,6 @@
 #include <iostream>
 #include <vector>
+#include <algorithm>
 
 #ifdef _WIN32
     // 用于解决windows.h和winsock2.h这两个头文件包含顺序的问题
@@ -109,7 +110,7 @@ int process(int sock) {
                     sizeof(Logout) - sizeof(DataHead), 0);
                 std::cout << "收到客户端<Socket=" << sock << ">请求: "
                     << "CMD_LOGOUT, 数据长度: " << logout.dataLength
-                    << "userName = " << logout.userName << std::endl;
+                    << ", userName = " << logout.userName << std::endl;
                 LogoutResult result;
                 result.result = 0;
                 send(sock, (const char*)&result, sizeof(result), 0);
@@ -187,7 +188,7 @@ int main() {
                 maxSock = g_sockVec[i];
             }
         }
-        timeval t = { 2, 0 };
+        timeval t = { 0, 0 };
         /// select的第一个参数是所有文件描述符的范围而不是数量
         /// 第一个参数是unix和linux中的伯克利socket，在windows下不需要设置
         ///select函数的最后一个参数如果被设置为NULL，则表示设置为阻塞状态
